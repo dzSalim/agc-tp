@@ -86,9 +86,9 @@ def read_fasta(amplicon_file, minseqlen):
     :param minseqlen: (int) Minimum amplicon sequence length
     :return: A generator object that provides the Fasta sequences (str).
     """
-    with gzip.open(amplicon_file, "rt") as ampli_file:
+    with gzip.open(amplicon_file, "rt") as file_in:
         seq = ""
-        for line in ampli_file:
+        for line in file_in:
             if line.startswith(">"):
                 if len(seq) >= minseqlen:
                     yield seq
