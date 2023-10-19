@@ -129,7 +129,7 @@ def get_identity(alignment_list):
     return identity_rate
 
 
-def abundance_greedy_clustering(amplicon_file, minseqlen: int, mincount: int, chunk_size: int, kmer_size: int) -> List:
+def abundance_greedy_clustering(amplicon_file, minseqlen, mincount, chunk_size=50, kmer_size=22):
     """Compute an abundance greedy clustering regarding sequence count and identity.
     Identify OTU sequences.
 
@@ -140,28 +140,32 @@ def abundance_greedy_clustering(amplicon_file, minseqlen: int, mincount: int, ch
     :param kmer_size: (int) A fournir mais non utilise cette annee
     :return: (list) A list of all the [OTU (str), count (int)] .
     """
-
     dereplication = dereplication_fulllength(amplicon_file, minseqlen, mincount)
-
     list_OTU = [next(dereplication)]
-    list_OTU = [i for i in dereplication if all(get_identity(nw.global_align(i[0],
-                                                                             j[0], gap_open=-1, gap_extend=-1,
-                                                                             matrix=os.path.abspath(
-                                                                                 os.path.join(
-                                                                                     os.path.dirname(__file__),
-                                                                                              "MATCH"))))
-                                                <= 97.0 for j in list_OTU)]
+
+    for i in dereplication:
+        unique = True
+        for j in list_OTU:
+            identity = get_identity(nw.global_align(i[0], j[0], gap_open=-1, gap_extend=-1,matrix=str(Path(__file__).parent / "MATCH")))
+            if identity >= 97:
+                unique = False
+                break
+        if unique:
+            list_OTU.append(i)
+
     return list_OTU
 
 
-def write_OTU(OTU_list: List, output_file: Path) -> None:
+def write_OTU(OTU_list, output_file):
     """Write the OTU sequence in fasta format.
 
     :param OTU_list: (list) A list of OTU sequences
     :param output_file: (Path) Path to the output file
     """
-    pass
-
+    with open(output_file,"w") as out_file:
+        for i in range(len(OTU_list)):
+            out_file.write(f">OTU_{i+1} occurrence:{OTU_list[i][1]}\n")
+            out_file.write(textwrap.fill(OTU_list[i][0],width=80) + "\n")
 
 #==============================================================
 # Main program
@@ -173,7 +177,8 @@ def main(): # pragma: no cover
     # Get arguments
     args = get_arguments()
     # Votre programme ici
-    print(list(dereplication_fulllength(args.amplicon_file,400,10))[0])
+    OTU_list = abundance_greedy_clustering(args.amplicon_file, args.minseqlen, args.mincount)
+    write_OTU(OTU_list, args.output_file)
 
 
 if __name__ == '__main__':
