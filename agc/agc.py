@@ -22,17 +22,20 @@ import textwrap
 from pathlib import Path
 from collections import Counter
 from typing import Iterator, Dict, List
+
 # https://github.com/briney/nwalign3
 # ftp://ftp.ncbi.nih.gov/blast/matrices/
 import nwalign3 as nw
+import numpy as np
+np.int = int
 
-__author__ = "Your Name"
+__author__ = "Agsous Salim"
 __copyright__ = "Universite Paris Diderot"
-__credits__ = ["Your Name"]
+__credits__ = ["Agsous Salim"]
 __license__ = "GPL"
 __version__ = "1.0.0"
-__maintainer__ = "Your Name"
-__email__ = "your@email.fr"
+__maintainer__ = "Agsous Salim"
+__email__ = "salim.agsous99@gmail.com"
 __status__ = "Developpement"
 
 
@@ -76,17 +79,27 @@ def get_arguments(): # pragma: no cover
     return parser.parse_args()
 
 
-def read_fasta(amplicon_file: Path, minseqlen: int) -> Iterator[str]:
+def read_fasta(amplicon_file, minseqlen):
     """Read a compressed fasta and extract all fasta sequences.
 
     :param amplicon_file: (Path) Path to the amplicon file in FASTA.gz format.
     :param minseqlen: (int) Minimum amplicon sequence length
     :return: A generator object that provides the Fasta sequences (str).
     """
-    pass
+    with gzip.open(amplicon_file, "rt") as ampli_file:
+        seq = ""
+        for line in ampli_file:
+            if line.startswith(">"):
+                if len(seq) >= minseqlen:
+                    yield seq
+                seq = ""
+            else:
+                seq += line.strip()
+        yield seq
 
 
-def dereplication_fulllength(amplicon_file: Path, minseqlen: int, mincount: int) -> Iterator[List]:
+
+def dereplication_fulllength(amplicon_file, minseqlen, mincount):
     """Dereplicate the set of sequence
 
     :param amplicon_file: (Path) Path to the amplicon file in FASTA.gz format.
@@ -94,17 +107,29 @@ def dereplication_fulllength(amplicon_file: Path, minseqlen: int, mincount: int)
     :param mincount: (int) Minimum amplicon count
     :return: A generator object that provides a (list)[sequences, count] of sequence with a count >= mincount and a length >= minseqlen.
     """
-    pass
+    amplicon_sorted = sorted(list(read_fasta(amplicon_file, minseqlen)), reverse=True)
+    occurence = Counter(amplicon_sorted)
 
-def get_identity(alignment_list: List[str]) -> float:
+    for seq, count in occurence.most_common():
+        if count >= mincount:
+            yield [seq, count]
+
+
+
+def get_identity(alignment_list):
     """Compute the identity rate between two sequences
 
     :param alignment_list:  (list) A list of aligned sequences in the format ["SE-QUENCE1", "SE-QUENCE2"]
     :return: (float) The rate of identity between the two sequences.
     """
-    pass
+    identity_rate = round(
+        100.0 * sum(1 for i in range(len(alignment_list[0])) if alignment_list[0][i] == alignment_list[1][i]) / len(
+            alignment_list[0]), 2)
 
-def abundance_greedy_clustering(amplicon_file: Path, minseqlen: int, mincount: int, chunk_size: int, kmer_size: int) -> List:
+    return identity_rate
+
+
+def abundance_greedy_clustering(amplicon_file, minseqlen: int, mincount: int, chunk_size: int, kmer_size: int) -> List:
     """Compute an abundance greedy clustering regarding sequence count and identity.
     Identify OTU sequences.
 
@@ -115,7 +140,18 @@ def abundance_greedy_clustering(amplicon_file: Path, minseqlen: int, mincount: i
     :param kmer_size: (int) A fournir mais non utilise cette annee
     :return: (list) A list of all the [OTU (str), count (int)] .
     """
-    pass
+
+    dereplication = dereplication_fulllength(amplicon_file, minseqlen, mincount)
+
+    list_OTU = [next(dereplication)]
+    list_OTU = [i for i in dereplication if all(get_identity(nw.global_align(i[0],
+                                                                             j[0], gap_open=-1, gap_extend=-1,
+                                                                             matrix=os.path.abspath(
+                                                                                 os.path.join(
+                                                                                     os.path.dirname(__file__),
+                                                                                              "MATCH"))))
+                                                <= 97.0 for j in list_OTU)]
+    return list_OTU
 
 
 def write_OTU(OTU_list: List, output_file: Path) -> None:
@@ -137,7 +173,7 @@ def main(): # pragma: no cover
     # Get arguments
     args = get_arguments()
     # Votre programme ici
-
+    print(list(dereplication_fulllength(args.amplicon_file,400,10))[0])
 
 
 if __name__ == '__main__':
